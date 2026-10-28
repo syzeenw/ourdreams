@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Our Dreams</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #f3f4f6; }
+        .app-container { max-width: 480px; margin: 0 auto; background: white; min-height: 100vh; box-shadow: 0 0 20px rgba(0,0,0,0.05); }
+        .hide { display: none !important; }
+        .glass-card { background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); color: white; border-radius: 1rem; padding: 1.5rem; box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.5); }
+    </style>
+</head>
+<body>
+    <div class="app-container flex flex-col h-screen">
+        
+        <!-- HALAMAN LOGIN -->
+        <div id="login-page" class="flex flex-col items-center justify-center h-full p-6">
+            <div class="text-center mb-8">
+                <h1 class="text-4xl font-extrabold text-blue-600 mb-2">Our Dreams</h1>
+                <p class="text-gray-500">Catatan Tabungan Bersama</p>
+            </div>
+            
+            <div class="w-full space-y-4">
+                <input type="email" id="email" placeholder="Email" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <input type="password" id="password" placeholder="Password" class="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500">
+                
+                <button id="btn-login" class="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition">Masuk</button>
+                <button id="btn-register" class="w-full bg-white text-blue-600 font-bold py-3 border-2 border-blue-600 rounded-xl hover:bg-blue-50 transition">Daftar Pertama Kali</button>
+            </div>
+            <p id="auth-error" class="text-red-500 mt-4 text-sm text-center hide"></p>
+        </div>
+
+        <!-- HALAMAN UTAMA (DASHBOARD) -->
+        <div id="dashboard-page" class="flex flex-col h-full hide relative">
+            <!-- Header -->
+            <div class="p-6 pb-2 flex justify-between items-center bg-white sticky top-0 z-10">
+                <h2 class="text-2xl font-bold text-gray-800">Our Dreams</h2>
+                <button id="btn-logout" class="text-sm font-semibold text-red-500 px-3 py-1 rounded-lg bg-red-50">Keluar</button>
+            </div>
+
+            <div class="flex-1 overflow-y-auto p-6 pt-2 pb-24">
+                <!-- Card Saldo -->
+                <div class="glass-card mb-6">
+                    <p class="text-blue-100 text-sm mb-1">Total Tabungan Terkumpul</p>
+                    <h3 class="text-3xl font-bold mb-4" id="total-balance">Rp 0</h3>
+                    
+                    <div class="flex justify-between text-xs text-blue-100 mb-1">
+                        <span>Progress</span>
+                        <span id="target-text">Target: Rp 0</span>
+                    </div>
+                    <div class="w-full bg-blue-900/30 rounded-full h-2.5 mb-1">
+                        <div id="progress-bar" class="bg-white h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <p class="text-xs text-right text-blue-100 cursor-pointer underline" id="btn-edit-target">Ubah Target</p>
+                </div>
+
+                <!-- Form Input Tabungan -->
+                <div class="bg-gray-50 p-4 rounded-xl mb-6 border border-gray-100">
+                    <h4 class="font-bold text-gray-700 mb-3 text-sm">Tambah Tabungan</h4>
+                    <div class="flex gap-2">
+                        <input type="number" id="input-amount" placeholder="Nominal (Cth: 50000)" class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button id="btn-add-saving" class="bg-blue-600 text-white font-bold px-4 py-2 rounded-lg hover:bg-blue-700">Simpan</button>
+                    </div>
+                </div>
+
+                <!-- Riwayat -->
+                <h4 class="font-bold text-gray-700 mb-3">Riwayat Penambahan</h4>
+                <div id="history-list" class="space-y-3">
+                    <!-- Data riwayat akan muncul di sini -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT FIREBASE & LOGIC -->
+    <script type="module">
+        // Import Firebase SDK
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+
+        // =========================================================================
+        // PENTING: REPLACE KODE DI BAWAH INI DENGAN KODE CONFIG DARI FIREBASE LU!
+        // =========================================================================
+        const firebaseConfig = {
+  apiKey: "AIzaSyArNvtr0Yx_gWyn76kFYrwQqZYTEoj4nJg",
+  authDomain: "our-dreams-56059.firebaseapp.com",
+  projectId: "our-dreams-56059",
+  storageBucket: "our-dreams-56059.firebasestorage.app",
+  messagingSenderId: "319960389394",
+  appId: "1:319960389394:web:97646447c69eca218a85cb",
+  measurementId: "G-BB8REDTXG9"
+};
+        // =========================================================================
+
+        // Cek apakah config sudah diisi
+        if (!firebaseConfig.apiKey) {
+            document.getElementById('auth-error').textContent = "Firebase belum di-setup. Masukkan config di kode HTML.";
+            document.getElementById('auth-error').classList.remove('hide');
+        }
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // UI Elements
+        const loginPage = document.getElementById('login-page');
+        const dashboardPage = document.getElementById('dashboard-page');
+        const historyList = document.getElementById('history-list');
+        const totalBalanceEl = document.getElementById('total-balance');
+        const progressBar = document.getElementById('progress-bar');
+        const targetText = document.getElementById('target-text');
+
+        let currentTarget = 0;
+        let currentTotal = 0;
+        let currentUserEmail = "";
+
+        // Format Uang Rupiah
+        const formatRp = (angka) => {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+        };
+
+        // Format Tanggal & Jam (Indonesia)
+        const formatWaktu = (timestamp) => {
+            if (!timestamp) return "";
+            const date = timestamp.toDate();
+            return new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date);
+        };
+
+        // Auth State Observer
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                currentUserEmail = user.email;
+                loginPage.classList.add('hide');
+                dashboardPage.classList.remove('hide');
+                loadTarget();
+                loadHistory();
+            } else {
+                loginPage.classList.remove('hide');
+                dashboardPage.classList.add('hide');
+            }
+        });
+
+        // Login
+        document.getElementById('btn-login').addEventListener('click', () => {
+            const e = document.getElementById('email').value;
+            const p = document.getElementById('password').value;
+            signInWithEmailAndPassword(auth, e, p).catch(err => alert("Gagal Login: " + err.message));
+        });
+
+        // Register
+        document.getElementById('btn-register').addEventListener('click', () => {
+            const e = document.getElementById('email').value;
+            const p = document.getElementById('password').value;
+            createUserWithEmailAndPassword(auth, e, p)
+                .then(() => alert("Berhasil mendaftar!"))
+                .catch(err => alert("Gagal Daftar: " + err.message));
+        });
+
+        // Logout
+        document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
+
+        // Load & Set Target
+        async function loadTarget() {
+            const targetDoc = doc(db, "settings", "goals");
+            onSnapshot(targetDoc, (docSnap) => {
+                if (docSnap.exists()) {
+                    currentTarget = docSnap.data().amount || 0;
+                    targetText.textContent = `Target: ${formatRp(currentTarget)}`;
+                    updateProgress();
+                }
+            });
+        }
+
+        document.getElementById('btn-edit-target').addEventListener('click', async () => {
+            const newTarget = prompt("Masukkan nominal target tabungan baru (angka saja):", currentTarget);
+            if (newTarget && !isNaN(newTarget)) {
+                await setDoc(doc(db, "settings", "goals"), { amount: Number(newTarget) });
+            }
+        });
+
+        // Tambah Tabungan
+        document.getElementById('btn-add-saving').addEventListener('click', async () => {
+            const amountInput = document.getElementById('input-amount');
+            const amount = Number(amountInput.value);
+            if (amount > 0) {
+                amountInput.value = '';
+                await addDoc(collection(db, "savings"), {
+                    amount: amount,
+                    user: currentUserEmail,
+                    timestamp: new Date()
+                });
+            }
+        });
+
+        // Load History & Calculate Total (Realtime)
+        function loadHistory() {
+            const q = query(collection(db, "savings"), orderBy("timestamp", "desc"));
+            onSnapshot(q, (snapshot) => {
+                historyList.innerHTML = '';
+                currentTotal = 0;
+                
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    currentTotal += data.amount;
+                    
+                    const namaPenyetor = data.user.split('@')[0]; // Ambil nama dari email
+                    
+                    const div = document.createElement('div');
+                    div.className = "bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center";
+                    div.innerHTML = `
+                        <div>
+                            <p class="font-bold text-gray-800">${formatRp(data.amount)}</p>
+                            <p class="text-xs text-gray-400 mt-1">${formatWaktu(data.timestamp)}</p>
+                        </div>
+                        <div class="text-right">
+                            <span class="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-md font-semibold">${namaPenyetor}</span>
+                        </div>
+                    `;
+                    historyList.appendChild(div);
+                });
+                
+                totalBalanceEl.textContent = formatRp(currentTotal);
+                updateProgress();
+            });
+        }
+
+        // Update Progress Bar
+        function updateProgress() {
+            if (currentTarget > 0) {
+                let percent = (currentTotal / currentTarget) * 100;
+                if (percent > 100) percent = 100;
+                progressBar.style.width = percent + '%';
+            } else {
+                progressBar.style.width = '0%';
+            }
+        }
+    </script>
+</body>
+</html>
