@@ -76,36 +76,24 @@
 
     <!-- SCRIPT FIREBASE & LOGIC -->
     <script type="module">
-        // Import Firebase SDK
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-app.js";
         import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-auth.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, setDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.11.0/firebase-firestore.js";
 
-        // =========================================================================
-        // PENTING: REPLACE KODE DI BAWAH INI DENGAN KODE CONFIG DARI FIREBASE LU!
-        // =========================================================================
         const firebaseConfig = {
-  apiKey: "AIzaSyArNvtr0Yx_gWyn76kFYrwQqZYTEoj4nJg",
-  authDomain: "our-dreams-56059.firebaseapp.com",
-  projectId: "our-dreams-56059",
-  storageBucket: "our-dreams-56059.firebasestorage.app",
-  messagingSenderId: "319960389394",
-  appId: "1:319960389394:web:97646447c69eca218a85cb",
-  measurementId: "G-BB8REDTXG9"
-};
-        // =========================================================================
-
-        // Cek apakah config sudah diisi
-        if (!firebaseConfig.apiKey) {
-            document.getElementById('auth-error').textContent = "Firebase belum di-setup. Masukkan config di kode HTML.";
-            document.getElementById('auth-error').classList.remove('hide');
-        }
+            apiKey: "AIzaSyArNvtr0Yx_gWyn76kFYrwQqZYTEoj4nJg",
+            authDomain: "our-dreams-56059.firebaseapp.com",
+            projectId: "our-dreams-56059",
+            storageBucket: "our-dreams-56059.firebasestorage.app",
+            messagingSenderId: "319960389394",
+            appId: "1:319960389394:web:97646447c69eca218a85cb",
+            measurementId: "G-BB8REDTXG9"
+        };
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // UI Elements
         const loginPage = document.getElementById('login-page');
         const dashboardPage = document.getElementById('dashboard-page');
         const historyList = document.getElementById('history-list');
@@ -117,19 +105,16 @@
         let currentTotal = 0;
         let currentUserEmail = "";
 
-        // Format Uang Rupiah
         const formatRp = (angka) => {
             return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
         };
 
-        // Format Tanggal & Jam (Indonesia)
         const formatWaktu = (timestamp) => {
             if (!timestamp) return "";
             const date = timestamp.toDate();
             return new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }).format(date);
         };
 
-        // Auth State Observer
         onAuthStateChanged(auth, (user) => {
             if (user) {
                 currentUserEmail = user.email;
@@ -143,14 +128,12 @@
             }
         });
 
-        // Login
         document.getElementById('btn-login').addEventListener('click', () => {
             const e = document.getElementById('email').value;
             const p = document.getElementById('password').value;
             signInWithEmailAndPassword(auth, e, p).catch(err => alert("Gagal Login: " + err.message));
         });
 
-        // Register
         document.getElementById('btn-register').addEventListener('click', () => {
             const e = document.getElementById('email').value;
             const p = document.getElementById('password').value;
@@ -159,10 +142,8 @@
                 .catch(err => alert("Gagal Daftar: " + err.message));
         });
 
-        // Logout
         document.getElementById('btn-logout').addEventListener('click', () => signOut(auth));
 
-        // Load & Set Target
         async function loadTarget() {
             const targetDoc = doc(db, "settings", "goals");
             onSnapshot(targetDoc, (docSnap) => {
@@ -181,7 +162,6 @@
             }
         });
 
-        // Tambah Tabungan
         document.getElementById('btn-add-saving').addEventListener('click', async () => {
             const amountInput = document.getElementById('input-amount');
             const amount = Number(amountInput.value);
@@ -195,18 +175,28 @@
             }
         });
 
-        // Load History & Calculate Total (Realtime)
+        window.deleteSaving = async function(id) {
+            if (confirm("Yakin ingin menghapus catatan tabungan ini?")) {
+                try {
+                    await deleteDoc(doc(db, "savings", id));
+                } catch (err) {
+                    alert("Gagal menghapus: " + err.message);
+                }
+            }
+        }
+
         function loadHistory() {
             const q = query(collection(db, "savings"), orderBy("timestamp", "desc"));
             onSnapshot(q, (snapshot) => {
                 historyList.innerHTML = '';
                 currentTotal = 0;
                 
-                snapshot.forEach((doc) => {
-                    const data = doc.data();
+                snapshot.forEach((docSnap) => {
+                    const data = docSnap.data();
+                    const docId = docSnap.id;
                     currentTotal += data.amount;
                     
-                    const namaPenyetor = data.user.split('@')[0]; // Ambil nama dari email
+                    const namaPenyetor = data.user.split('@')[0];
                     
                     const div = document.createElement('div');
                     div.className = "bg-white p-4 rounded-xl border border-gray-100 shadow-sm flex justify-between items-center";
@@ -215,7 +205,7 @@
                             <p class="font-bold text-gray-800">${formatRp(data.amount)}</p>
                             <p class="text-xs text-gray-400 mt-1">${formatWaktu(data.timestamp)}</p>
                         </div>
-                        <div class="text-right">
+                        <div class="flex items-center gap-3">
                             <span class="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded-md font-semibold">${namaPenyetor}</span>
                         </div>
                     `;
@@ -227,7 +217,6 @@
             });
         }
 
-        // Update Progress Bar
         function updateProgress() {
             if (currentTarget > 0) {
                 let percent = (currentTotal / currentTarget) * 100;
